@@ -1,0 +1,20 @@
+{
+  "name": "flatme",
+  "private": true,
+  "version": "0.1.0",
+  "description": "FlatMe — verified corporate flat sharing (MVP)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:shared": "npm run typecheck -w packages/shared",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "api:start": "npm run start -w apps/api",
+    "mobile:start": "npm run start -w apps/mobile"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "FlatMe",
+    "slug": "flatme",
+    "scheme": "flatme",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.flatme.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FlatMe uses your location to show rooms close to you and your office."
+      }
+    },
+    "android": {
+      "package": "com.flatme.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0891B2",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0891B2",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      "expo-image",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FlatMe uses your location to show rooms close to you and your office."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FlatMe needs access to your photos so you can add pictures of your room.",
+          "cameraPermission": "FlatMe needs camera access so you can photograph your room."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class androidx.work.impl.** { *; }"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

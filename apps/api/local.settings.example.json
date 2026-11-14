@@ -1,0 +1,28 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "JWT_SECRET": "local-dev-secret-change-me-0123456789abcdef",
+    "JWT_TTL_DAYS": "30",
+    "OTP_DEV_MODE": "true",
+    "OTP_PEPPER": "",
+    "DEMO_EMAIL": "demo@flatme.app",
+    "DEMO_OTP": "123456",
+    "ADMIN_EMAILS": "admin@flatme.app",
+    "ADMIN_AUTH_DISABLED": "false",
+    "SEED_MEMORY": "true",
+    "COSMOS_ENDPOINT": "",
+    "COSMOS_DATABASE": "flatme",
+    "STORAGE_ACCOUNT_URL": "",
+    "PHOTOS_CONTAINER": "listing-photos",
+    "ACS_ENDPOINT": "",
+    "ACS_CONNECTION_STRING": "",
+    "EMAIL_SENDER": ""
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "http://localhost:5173,http://localhost:8081",
+    "CORSCredentials": false
+  }
+}

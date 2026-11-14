@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Shared + API + infra
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Shared — typecheck & test
+        run: |
+          npm run typecheck -w packages/shared
+          npm run test -w packages/shared
+
+      - name: API — typecheck & test
+        run: |
+          npm run typecheck -w apps/api
+          npm run test -w apps/api
+
+      - name: API — build & package
+        run: |
+          npm run build -w apps/api
+          node apps/api/scripts/package.mjs
+
+      - name: Infra — bicep build
+        run: |
+          az bicep install || true
+          az bicep build --file infra/main.bicep --stdout > /dev/null
+
+  mobile:
+    name: Mobile (Expo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck & lint
+        working-directory: apps/mobile
+        run: |
+          npx tsc --noEmit
+          npx expo lint
+
+      - name: Bundle (web export smoke test)
+        working-directory: apps/mobile
+        run: npx expo export --platform web --output-dir dist
+
+  admin:
+    name: Admin portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck, test & build
+        run: |
+          npm run typecheck -w apps/admin
+          npm run test -w apps/admin
+          npm run build -w apps/admin

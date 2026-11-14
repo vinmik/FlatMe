@@ -1,0 +1,20 @@
+{
+  "name": "@flatme/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Domain contracts (Zod schemas + types) shared by the FlatMe API and mobile app",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

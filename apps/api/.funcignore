@@ -1,0 +1,9 @@
+src/
+test/
+scripts/
+node_modules/
+.deploy/
+*.map
+tsconfig.json
+vitest.config.ts
+local.settings*.json
