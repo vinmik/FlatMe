@@ -7,7 +7,7 @@ Verified flat sharing for working professionals in Hyderabad. Sign in with your 
 | **Mobile app** | Expo / React Native (`apps/mobile`) |
 | **API** | Azure Functions, Node 22 (`apps/api`) → https://func-flatme-prod-5izkj3qnoyskq.azurewebsites.net/api |
 | **Admin portal** | React + Vite on Static Web Apps (`apps/admin`) → https://orange-forest-097ef9700.6.azurestaticapps.net |
-| **Web app** | Next.js: public pages for search engines plus the full signed-in product (`apps/webapp`). Runs locally; not hosted yet |
+| **Web app** | Next.js: public pages for search engines plus the full signed-in product (`apps/webapp`). Trial hosting via the "Deploy web app (trial)" workflow |
 | **Landing page** | Placeholder landing page on Static Web Apps (`apps/web`) → https://salmon-island-0083ad500.3.azurestaticapps.net |
 | **Contracts** | Zod schemas shared by every app (`packages/shared`) |
 | **Infra** | Bicep: Cosmos DB, Blob Storage, Communication Services email, Key Vault, App Insights (`infra/`) |

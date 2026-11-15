@@ -59,11 +59,15 @@ Copy `.env.example` to `.env.local`.
 
 ## Going live
 
-`apps/web` (the static placeholder landing page) is what is live today; this web app is meant to replace it once hosted. Nothing deploys this app yet.
+`apps/web` (the static placeholder landing page) is what is live today; this web app is meant to replace it. The main Deploy workflow does not publish this app.
 
-The site needs a host that runs Node. On Azure that is App Service, or Static Web Apps in its hybrid Next.js mode (in preview, and untested with this app). Before pointing it at the production API:
+**Trial on Azure Static Web Apps.** `.github/workflows/deploy-webapp.yml` ("Deploy web app (trial)") publishes it to the same Static Web App as the landing page, using Static Web Apps' hybrid Next.js mode. That mode is a preview and officially lists older Next.js versions, so treat a run as an experiment.
 
-1. Deploy the API version that includes the `public/listings` endpoints (Actions → Deploy, tick API).
-2. Add the site's address to the Function App's allowed origins.
-3. Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SITE_URL` at build time.
-4. Map tiles come straight from openstreetmap.org, which is fine for light use; switch to a paid tile provider before real traffic.
+- With the default environment name it goes to a separate preview address and the landing page stays as it is.
+- Run it with `production` to replace the landing page at the main address.
+- It builds with `scripts/bundle-standalone.mjs`, which makes a self-contained copy of the app in `.deploy/webapp` (the shared package vendored in, Next.js "standalone" output, about 70 MB). The same script works for any Node host: `node .deploy/webapp/.next/standalone/server.js`.
+- A preview address is not in the API's allowed origins, so on a preview the server-rendered pages work but sign-in and other browser calls to the API are blocked. The main address is allowed.
+
+If the trial fails, the fallback is a Node host such as Azure App Service, running the same standalone build.
+
+Before real traffic: map tiles come straight from openstreetmap.org, which is fine for light use; switch to a paid tile provider.

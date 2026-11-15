@@ -1,0 +1,58 @@
+name: Deploy web app (trial)
+
+# Publishes the Next.js web app (apps/webapp) to the Static Web App that hosts the placeholder landing page,
+# using Static Web Apps' hybrid Next.js mode (preview).
+#
+# Run from Actions → "Deploy web app (trial)" → Run workflow.
+#   - With the default environment name the build goes to a separate preview address and the live
+#     landing page is untouched. The address is printed at the end of the deploy step.
+#   - Type "production" to replace the landing page at the main address.
+# Uses the same `production` environment as deploy.yml: secret SWA_WEB_TOKEN, variable API_BASE_URL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: Where to publish. Anything except "production" creates a separate preview address.
+        type: string
+        default: webapp-trial
+      site_url:
+        description: Public address of the site, used for canonical links and the sitemap.
+        type: string
+        default: https://salmon-island-0083ad500.3.azurestaticapps.net
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-webapp
+  cancel-in-progress: false
+
+jobs:
+  webapp:
+    name: Web app → Static Web App
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build a self-contained copy
+        run: node apps/webapp/scripts/bundle-standalone.mjs
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.API_BASE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ inputs.site_url }}
+      - name: Upload size
+        run: du -sh .deploy/webapp
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_WEB_TOKEN }}
+          action: upload
+          app_location: .deploy/webapp
+          api_location: ""
+          output_location: ""
+          skip_app_build: true
+          skip_api_build: true
+          deployment_environment: ${{ inputs.environment_name != 'production' && inputs.environment_name || '' }}

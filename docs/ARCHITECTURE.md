@@ -249,9 +249,11 @@ CORS: the Function App allows the admin SWA origin, `http://localhost:5173` (adm
 **Relation to `apps/web`**
 - `apps/web` is the static placeholder landing page that is live today. `apps/webapp` is the full web app meant to replace it; both can sit in the repo until the web app is hosted.
 
-**Not provisioned yet**
-- Nothing in `infra/` or `.github/workflows/deploy.yml` hosts the web app yet. It needs a host that runs Node. Two routes on Azure: App Service, or Static Web Apps' hybrid Next.js mode (in preview; untested with this app).
-- Its address must be in the Function App's CORS list (`extraCorsOrigins`, or wired in `infra/main.bicep` like the other sites).
+**Hosting (trial)**
+- `.github/workflows/deploy-webapp.yml` publishes the web app to the landing page's Static Web App in hybrid Next.js mode (a preview feature). By default it targets a separate preview environment; run with `production` to replace the landing page.
+- It uploads a self-contained build made by `apps/webapp/scripts/bundle-standalone.mjs` (shared package vendored, Next.js standalone output). The main Deploy workflow is unchanged and still publishes `apps/web`.
+- The main site address is already in the Function App's CORS list; preview addresses are not.
+- If hybrid mode can't run this app, the fallback is a Node host such as App Service with the same build. Nothing in `infra/` provisions that.
 
 ## Infrastructure
 
