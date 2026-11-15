@@ -5,3 +5,4 @@ export * from "./domain";
 export * from "./format";
 export * from "./routes";
 export * from "./admin";
+export * from "./dataExplorer";

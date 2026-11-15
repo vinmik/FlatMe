@@ -13,6 +13,7 @@ const UsersPage = lazy(() => import("@/features/users/UsersPage"));
 const ListingsPage = lazy(() => import("@/features/listings/ListingsPage"));
 const ReportsPage = lazy(() => import("@/features/reports/ReportsPage"));
 const AuditPage = lazy(() => import("@/features/audit/AuditPage"));
+const DataExplorerPage = lazy(() => import("@/features/data/DataExplorerPage"));
 
 function PageFallback() {
   return (
@@ -46,6 +47,7 @@ export const routes: RouteObject[] = [
       { path: "listings", element: page(<ListingsPage />) },
       { path: "reports", element: page(<ReportsPage />) },
       { path: "audit", element: page(<AuditPage />) },
+      { path: "data", element: page(<DataExplorerPage />) },
       { path: "*", element: <NotFound /> },
     ],
   },

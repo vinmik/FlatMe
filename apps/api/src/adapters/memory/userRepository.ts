@@ -1,12 +1,16 @@
 import type { UserEntity } from "../../domain/entities";
 import type { AdminUserCriteria, Paged, UserRepository, UserStatsRow } from "../../ports";
-import { clone, containsText, newestFirst, paginate } from "./util";
+import { clone, containsText, mapCollection, newestFirst, paginate, type MemoryCollection } from "./util";
 
 export class MemoryUserRepository implements UserRepository {
   private readonly docs = new Map<string, UserEntity>();
 
   constructor(seed: readonly UserEntity[] = []) {
     for (const u of seed) this.docs.set(u.id, clone(u));
+  }
+
+  collection(): MemoryCollection {
+    return mapCollection(this.docs);
   }
 
   async get(id: string): Promise<UserEntity | null> {

@@ -4,6 +4,13 @@ import {
   AdminListingQuerySchema,
   AdminReportQuerySchema,
   AdminUserQuerySchema,
+  DATA_CONTAINERS,
+  DataBrowseQuerySchema,
+  DataItemKeySchema,
+  DataQueryInputSchema,
+  isPlainObject,
+  matchesBrowseFilter,
+  matchesSimpleSelect,
   ModerateListingSchema,
   OtpRequestSchema,
   OtpVerifySchema,
@@ -11,11 +18,16 @@ import {
   ROUTES,
   SetUserRoleSchema,
   SetUserStatusSchema,
+  parseSimpleSelect,
+  readPath,
+  stripSystemProps,
   toIsoDate,
+  validateReadOnlyQuery,
   UserSchema,
   type AdminStats,
   type AdminUser,
   type AuditEntry,
+  type DataContainer,
   type ErrorCode,
   type User,
 } from "@flatme/shared";
@@ -83,6 +95,43 @@ function matcher(route: (id: string) => string) {
   const pattern = route("\u0000").split("\u0000").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("([^/]+)");
   const re = new RegExp(`^${pattern}$`);
   return (path: string) => re.exec(path)?.[1];
+}
+
+/** Like `matcher`, for routes with several path params (e.g. "admin/data/:container/items/:id"). */
+function multiMatcher(route: (...ids: string[]) => string, arity: number) {
+  const pattern = route(...Array<string>(arity).fill("\u0000"))
+    .split("\u0000")
+    .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("([^/]+)");
+  const re = new RegExp(`^${pattern}$`);
+  return (path: string) => re.exec(path)?.slice(1) as string[] | undefined;
+}
+
+const dataMatch = {
+  items: multiMatcher(ADMIN_ROUTES.dataItems, 1),
+  query: multiMatcher(ADMIN_ROUTES.dataQuery, 1),
+  item: multiMatcher(ADMIN_ROUTES.dataItem, 2),
+};
+
+type Doc = Record<string, unknown>;
+
+/** Stand-in for Cosmos `_etag` (content hash) and `_ts` (last write, from updatedAt/createdAt). */
+function withSystemProps(doc: Doc): Doc {
+  const clean = stripSystemProps(doc);
+  const json = JSON.stringify(clean);
+  let h = 5381;
+  for (let i = 0; i < json.length; i++) h = ((h << 5) + h + json.charCodeAt(i)) | 0;
+  const stamp = typeof clean.updatedAt === "string" ? clean.updatedAt : typeof clean.createdAt === "string" ? clean.createdAt : null;
+  const ts = stamp ? Math.floor(Date.parse(stamp) / 1000) : 0;
+  return { ...structuredClone(clean), _etag: `"mock-${(h >>> 0).toString(16)}"`, _ts: ts };
+}
+
+function dataPage(docs: Doc[], pageSize: number, continuation?: string) {
+  const offset = continuation ? Number(continuation) : 0;
+  if (!Number.isInteger(offset) || offset < 0) throw new HttpError(400, "bad_request", "Invalid continuation token");
+  const items = docs.slice(offset, offset + pageSize).map(withSystemProps);
+  const next = offset + pageSize < docs.length ? String(offset + pageSize) : null;
+  return { items, continuation: next, requestCharge: Math.round((2.3 + items.length * 0.4) * 100) / 100, count: items.length };
 }
 
 const match = {
@@ -155,8 +204,80 @@ export function createMockBackend(db: MockDb = createSeed(), now: () => Date = (
     for (const l of db.listings) l.openReports = db.reports.filter((r) => r.listingId === l.id && r.status === "open").length;
   };
 
-  function stats(): AdminStats {
-    const t = now().getTime();
+  // OTP documents are short-lived and never seeded; the container exists so the list mirrors Cosmos.
+  const otps: Doc[] = [];
+  const dataCollections: Record<string, () => Doc[]> = {
+    users: () => db.users as unknown as Doc[],
+    listings: () => db.listings as unknown as Doc[],
+    otps: () => otps,
+    inquiries: () => db.inquiries as unknown as Doc[],
+    reports: () => db.reports as unknown as Doc[],
+    audit: () => db.audit as unknown as Doc[],
+  };
+  const dataContainer = (name: string): DataContainer => {
+    const c = DATA_CONTAINERS.find((x) => x.name === name);
+    if (!c) throw new HttpError(404, "not_found", `Unknown container "${name}"`);
+    return c;
+  };
+  const newestFirst = (docs: Doc[]) => [...docs].sort((a, b) => Number(withSystemProps(b)._ts) - Number(withSystemProps(a)._ts));
+
+  function dataRoute(method: string, path: string, q: Record<string, string>, body: unknown, actor: AdminUser): MockResponse | null {
+    if (method === "GET" && path === ADMIN_ROUTES.dataContainers) return { status: 200, body: { items: DATA_CONTAINERS } };
+    let m: string[] | undefined;
+    if ((m = dataMatch.items(path)) && method === "GET") {
+      const c = dataContainer(m[0]!);
+      const f = parse(DataBrowseQuerySchema, q);
+      const filter = f.field && f.value !== undefined ? { field: f.field, op: f.op, value: f.value } : null;
+      const docs = dataCollections[c.name]!().filter((d) => !filter || matchesBrowseFilter(d, filter));
+      return { status: 200, body: dataPage(newestFirst(docs), f.pageSize, f.continuation) };
+    }
+    if ((m = dataMatch.query(path)) && method === "POST") {
+      const c = dataContainer(m[0]!);
+      const b = parse(DataQueryInputSchema, body);
+      const problem = validateReadOnlyQuery(b.query);
+      if (problem) throw new HttpError(400, "bad_request", problem);
+      const select = parseSimpleSelect(b.query);
+      if (!select) throw new HttpError(400, "bad_request", "Demo mode supports SELECT * FROM c [WHERE c.field = 'value' [AND …]] only.");
+      const docs = dataCollections[c.name]!().filter((d) => matchesSimpleSelect(d, select));
+      return { status: 200, body: dataPage(docs, b.pageSize, b.continuation) };
+    }
+    if ((m = dataMatch.item(path))) {
+      const c = dataContainer(m[0]!);
+      const id = m[1]!;
+      const { pk } = parse(DataItemKeySchema, q);
+      const docs = dataCollections[c.name]!();
+      const index = docs.findIndex((d) => d.id === id && String(readPath(d, c.partitionKeyPath)) === pk);
+      if (index < 0) throw new HttpError(404, "not_found", "Document not found");
+      const current = docs[index]!;
+      if (method === "GET") return { status: 200, body: withSystemProps(current) };
+      if (method !== "PUT" && method !== "DELETE") return null;
+      if (!c.writable) throw new HttpError(400, "bad_request", `The ${c.name} container is read-only in the Data Explorer`);
+      const target = `${c.name}/${id}`;
+      if (method === "DELETE") {
+        docs.splice(index, 1);
+        audit(actor, "data.delete", "document", target, `Deleted ${target} (partition key "${pk}") via Data Explorer`);
+        return { status: 204 };
+      }
+      if (!isPlainObject(body)) throw new HttpError(400, "bad_request", "The document must be a JSON object");
+      if (body.id !== id) throw new HttpError(400, "bad_request", `The document id can't be changed (expected "${id}")`);
+      if (readPath(body, c.partitionKeyPath) !== pk) {
+        throw new HttpError(400, "bad_request", `The partition key (${c.partitionKeyPath}) can't be changed (expected "${pk}")`);
+      }
+      if (typeof body._etag === "string" && body._etag !== withSystemProps(current)._etag) {
+        throw new HttpError(409, "conflict", "This document was changed by someone else. Reload it and try again.");
+      }
+      const next = stripSystemProps(body);
+      const changed = [...new Set([...Object.keys(stripSystemProps(current)), ...Object.keys(next)])]
+        .filter((k) => JSON.stringify(current[k]) !== JSON.stringify(next[k]))
+        .sort();
+      docs[index] = structuredClone(next);
+      audit(actor, "data.update", "document", target, `Edited ${target} via Data Explorer: ${changed.length ? `changed ${changed.join(", ")}` : "no field changes"}`);
+      return { status: 200, body: withSystemProps(next) };
+    }
+    return null;
+  }
+
+  function stats(): AdminStats {    const t = now().getTime();
     const since7 = new Date(t - 7 * DAY).toISOString();
     const days = Array.from({ length: 14 }, (_, i) => toIsoDate(new Date(t - (13 - i) * DAY)));
     const bucket = (iso: string) => iso.slice(0, 10);
@@ -361,6 +482,9 @@ export function createMockBackend(db: MockDb = createSeed(), now: () => Date = (
       const rows = db.audit.filter((a) => contains([a.actorEmail, a.details, a.targetId, a.action], f.q) && (!f.targetId || a.targetId === f.targetId));
       return { status: 200, body: paginate(rows, f.limit, f.cursor) };
     }
+
+    const data = dataRoute(method, path, q, body, actor);
+    if (data) return data;
 
     throw new HttpError(404, "not_found", `No route for ${method} /${path}`);
   }

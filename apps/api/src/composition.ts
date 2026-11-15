@@ -12,6 +12,7 @@ import type {
   AuditRepository,
   BlobUploadUrlSigner,
   Clock,
+  DataExplorerRepository,
   EmailSender,
   InquiryRepository,
   ListingRepository,
@@ -25,6 +26,7 @@ import { buildSeed } from "./seed/seedData";
 import { AdminService } from "./services/adminService";
 import { AuditService } from "./services/auditService";
 import { AuthService, type AuthOptions } from "./services/authService";
+import { DataExplorerService } from "./services/dataExplorerService";
 import { FavoriteService } from "./services/favoriteService";
 import { InquiryService } from "./services/inquiryService";
 import { ListingService } from "./services/listingService";
@@ -44,6 +46,8 @@ export interface Repositories {
   inquiries: InquiryRepository;
   reports: ReportRepository;
   audit: AuditRepository;
+  /** Raw, allowlisted container access for the admin Data Explorer. */
+  data: DataExplorerRepository;
 }
 
 export interface Dependencies {
@@ -72,6 +76,7 @@ export interface Services {
   media: MediaService;
   public: PublicService;
   admin: AdminService;
+  dataExplorer: DataExplorerService;
 }
 
 /** Pure wiring — used by the runtime composition below and directly by tests. */
@@ -105,6 +110,7 @@ export function buildServices(d: Dependencies): Services {
       repos.audit,
       clock,
     ),
+    dataExplorer: new DataExplorerService(repos.data, audit),
   };
 }
 

@@ -1,4 +1,4 @@
-import { ClipboardList, Flag, Home, LayoutDashboard, LogOut, ShieldOff, Users, X } from "lucide-react";
+import { ClipboardList, Database, Flag, Home, LayoutDashboard, LogOut, ShieldOff, Users, X } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useEffect } from "react";
 import { NavLink } from "react-router";
@@ -15,6 +15,7 @@ const NAV = [
   { to: "/listings", label: "Listings", icon: Home },
   { to: "/reports", label: "Reports", icon: Flag, badge: "reports" as const },
   { to: "/audit", label: "Audit log", icon: ClipboardList },
+  { to: "/data", label: "Data Explorer", icon: Database },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {

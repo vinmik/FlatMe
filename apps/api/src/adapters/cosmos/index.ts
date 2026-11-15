@@ -1,5 +1,6 @@
 import { CosmosClient } from "@azure/cosmos";
 import type { TokenCredential } from "@azure/identity";
+import { CosmosDataExplorerRepository } from "./dataExplorerRepository";
 import { CosmosListingRepository } from "./listingRepository";
 import {
   CosmosAuditRepository,
@@ -28,5 +29,6 @@ export function createCosmosRepositories(endpoint: string, database: string, cre
     inquiries: new CosmosInquiryRepository(db.container(CONTAINERS.inquiries)),
     reports: new CosmosReportRepository(db.container(CONTAINERS.reports)),
     audit: new CosmosAuditRepository(db.container(CONTAINERS.audit)),
+    data: new CosmosDataExplorerRepository(db),
   };
 }

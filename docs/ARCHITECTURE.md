@@ -180,7 +180,16 @@ The admin portal (`apps/admin`, Static Web App) talks to the same Function App t
 
 **Audit**
 - Every admin mutation writes an `AuditEntry` to Cosmos `audit` (/id). Each entry has a per-item TTL of 365 days.
-- Audited actions: user suspend/reinstate/role/delete, listing moderate/delete, report resolve/dismiss.
+- Audited actions: user suspend/reinstate/role/delete, listing moderate/delete, report resolve/dismiss, Data Explorer document edit/delete (`data.update` / `data.delete`, target type `document`, target id `<container>/<id>`).
+
+**Data Explorer** (`services/dataExplorerService.ts`, port `DataExplorerRepository`, Cosmos + memory adapters)
+- Raw document access for operators: browse with a filter, run read-only SQL, view, replace and delete. Same `withAdmin` guard as every other admin route.
+- **Allowlist.** Only the containers in `DATA_CONTAINERS` (`packages/shared/src/dataExplorer.ts`) are reachable: `users`, `listings`, `otps`, `inquiries`, `reports` and `audit`. Any other name returns 404 and is never passed to Cosmos. `audit` is read-only, so writes to it return 400.
+- **Browse filter.** The `field` must match `DATA_FIELD_PATH_RE` (for example `status` or `contact.email`). It is emitted as a bracketed property path and the value is always a query parameter. `eq` matches the string form, or the number/boolean/null when the value parses as one. `contains` is case-insensitive. Results are newest first (`_ts DESC`).
+- **Read-only SQL.** The query must start with `SELECT` after comments are stripped, may not contain `;`, and is capped at 4,000 characters. Cross-partition queries are allowed. Paging defaults to 25 items, up to 100, using the Cosmos continuation token. Responses report the request charge in RU. Cosmos syntax errors return 400 `Query failed: …`.
+- **Replace.** The body must be a JSON object whose `id` and partition-key value match the URL. System properties (`_rid`, `_self`, `_etag`, `_attachments`, `_ts`) are stripped before writing. Optimistic concurrency uses `If-Match` or the body's `_etag`; a stale etag returns 409 `conflict`.
+- The memory adapter (tests, `SEED_MEMORY`) only understands `SELECT * FROM c [WHERE c.f = literal [AND …]]`. Other queries return 400 with an explanation.
+- **With `ADMIN_AUTH_DISABLED=true` these endpoints let anyone read and rewrite raw production data, including OTP hashes and user PII.**
 
 | Method | Route | Response |
 | --- | --- | --- |
@@ -195,6 +204,10 @@ The admin portal (`apps/admin`, Static Web App) talks to the same Function App t
 | GET | `admin/reports?status&q&cursor&limit` | `ReportPage` |
 | PATCH (PUT) | `admin/reports/{id}` | `Report` |
 | GET | `admin/audit?targetId&q&cursor&limit` | `AuditPage` |
+| GET | `admin/data/containers` | `DataContainerList` |
+| GET | `admin/data/{container}/items?field&op=eq\|contains&value&pageSize&continuation` | `DataPage` |
+| POST | `admin/data/{container}/query` `{ query, pageSize?, continuation? }` | `DataPage` (`items`, `continuation`, `requestCharge`, `count`) |
+| GET / PUT / DELETE | `admin/data/{container}/items/{id}?pk=` | raw document / replaced document / 204 |
 
 CORS: the Function App allows the admin SWA origin, `http://localhost:5173` (admin dev) and `http://localhost:8081` (Expo web). Native mobile clients don't need CORS.
 

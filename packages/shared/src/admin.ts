@@ -93,8 +93,11 @@ export const AuditEntrySchema = z.object({
     "listing.delete",
     "report.resolve",
     "report.dismiss",
+    "data.update",
+    "data.delete",
   ]),
-  targetType: z.enum(["user", "listing", "report"]),
+  /** "document" targets are Data Explorer writes; targetId is `<container>/<id>`. */
+  targetType: z.enum(["user", "listing", "report", "document"]),
   targetId: z.string(),
   details: z.string(),
   createdAt: z.string(),
@@ -160,6 +163,62 @@ export const AdminListingPageSchema = PageSchema(AdminListingSchema);
 export const ReportPageSchema = PageSchema(ReportSchema);
 export const AuditPageSchema = PageSchema(AuditEntrySchema);
 
+/* ───────────────────────────── Data Explorer ───────────────────────────── */
+
+export const DATA_PAGE_SIZE_DEFAULT = 25;
+export const DATA_PAGE_SIZE_MAX = 100;
+export const DATA_QUERY_MAX_LENGTH = 4000;
+/** Dotted top-level/nested property path, e.g. `status` or `contact.email` (never interpolated raw). */
+export const DATA_FIELD_PATH_RE = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+export const DataContainerSchema = z.object({
+  name: z.string(),
+  /** Cosmos partition key path, e.g. "/id" or "/listingId". */
+  partitionKeyPath: z.string(),
+  /** False for containers the explorer must never modify (the audit log). */
+  writable: z.boolean(),
+});
+export type DataContainer = z.infer<typeof DataContainerSchema>;
+export const DataContainerListSchema = z.object({ items: z.array(DataContainerSchema) });
+
+/** A raw stored document, including Cosmos system properties (`_etag`, `_ts`, …) when present. */
+export const DataDocumentSchema = z.looseObject({ id: z.string() });
+export type DataDocument = z.infer<typeof DataDocumentSchema>;
+
+const dataPage = {
+  pageSize: z.coerce.number().int().min(1).max(DATA_PAGE_SIZE_MAX).default(DATA_PAGE_SIZE_DEFAULT),
+  continuation: z.string().max(16_384).optional(),
+};
+
+export const DataBrowseQuerySchema = z
+  .object({
+    field: z.string().trim().max(200).regex(DATA_FIELD_PATH_RE, "Use a field path like status or contact.email").optional(),
+    op: z.enum(["eq", "contains"]).default("eq"),
+    value: z.string().max(500).optional(),
+    ...dataPage,
+  })
+  .refine((v) => v.value === undefined || v.field !== undefined, { message: "Pick a field to filter on", path: ["field"] });
+export type DataBrowseQuery = z.input<typeof DataBrowseQuerySchema>;
+
+export const DataQueryInputSchema = z.object({
+  query: z.string().trim().min(1, "Enter a query").max(DATA_QUERY_MAX_LENGTH),
+  ...dataPage,
+});
+export type DataQueryInput = z.input<typeof DataQueryInputSchema>;
+
+/** Query results may be projections or scalars, so items are not assumed to be documents. */
+export const DataPageSchema = z.object({
+  items: z.array(z.unknown()),
+  continuation: z.string().nullable(),
+  /** Request units consumed (0 for the in-memory store). */
+  requestCharge: z.number(),
+  count: z.number(),
+});
+export type DataPage = z.infer<typeof DataPageSchema>;
+
+/** `?pk=` — the document's partition key value (single-path string keys). */
+export const DataItemKeySchema = z.object({ pk: z.string().min(1, "Partition key is required").max(1024) });
+
 export const ADMIN_ROUTES = {
   stats: "admin/stats",
   users: "admin/users",
@@ -172,6 +231,10 @@ export const ADMIN_ROUTES = {
   reports: "admin/reports",
   report: (id: string) => `admin/reports/${id}`,
   audit: "admin/audit",
+  dataContainers: "admin/data/containers",
+  dataItems: (container: string) => `admin/data/${container}/items`,
+  dataQuery: (container: string) => `admin/data/${container}/query`,
+  dataItem: (container: string, id: string) => `admin/data/${container}/items/${id}`,
 } as const;
 
 /** User-facing route for filing a report (mobile app). */

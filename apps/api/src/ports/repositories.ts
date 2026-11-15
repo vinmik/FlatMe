@@ -1,4 +1,4 @@
-import type { AccountStatus, GeoPoint, ListingFilters, ListingStatus, ReportStatusSchema, Role } from "@flatme/shared";
+import type { AccountStatus, DataContainer, GeoPoint, ListingFilters, ListingStatus, ReportStatusSchema, Role } from "@flatme/shared";
 import type { z } from "zod";
 import type {
   AuditEntity,
@@ -157,4 +157,45 @@ export interface AuditRepository {
   append(entry: AuditEntity): Promise<void>;
   /** Newest first. */
   query(q: AuditCriteria): Promise<Paged<AuditEntity>>;
+}
+
+/* ───────────────────────────── Data Explorer ───────────────────────────── */
+
+/** A raw stored document; reads include system properties such as `_etag` / `_ts` when the store has them. */
+export type RawDocument = Record<string, unknown> & { id: string };
+
+export interface DataPageRequest {
+  pageSize: number;
+  continuation?: string | undefined;
+}
+
+export interface DataPageResult {
+  items: unknown[];
+  continuation: string | null;
+  requestCharge: number;
+}
+
+export interface DataBrowseFilter {
+  /** Validated dotted path (DATA_FIELD_PATH_RE). */
+  field: string;
+  op: "eq" | "contains";
+  value: string;
+}
+
+/**
+ * Generic, container-level access for the admin Data Explorer. `container` is always a name from
+ * {@link DataExplorerRepository.containers} (the service enforces the allowlist).
+ * Errors: invalid queries → BadRequestError, missing documents → NotFoundError,
+ * `etag` mismatch → ConflictError.
+ */
+export interface DataExplorerRepository {
+  containers(): readonly DataContainer[];
+  /** Newest first; the filter value is always passed as a query parameter. */
+  browse(container: string, filter: DataBrowseFilter | undefined, page: DataPageRequest): Promise<DataPageResult>;
+  /** Runs an already validated read-only query (cross-partition). */
+  query(container: string, query: string, page: DataPageRequest): Promise<DataPageResult>;
+  get(container: string, id: string, partitionKey: string): Promise<RawDocument | null>;
+  /** Full replace of an existing document; `etag` enables optimistic concurrency. */
+  replace(container: string, doc: RawDocument, partitionKey: string, etag?: string): Promise<RawDocument>;
+  delete(container: string, id: string, partitionKey: string, etag?: string): Promise<void>;
 }

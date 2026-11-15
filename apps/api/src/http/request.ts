@@ -43,3 +43,12 @@ export function routeParam(req: HttpRequest, name: string): string {
   if (!value || !ID_RE.test(value)) throw new BadRequestError(`Invalid ${name}`);
   return value;
 }
+
+/** Cosmos ids may contain most characters (e.g. emails) but never `/`, `\`, `?` or `#`. */
+const DOC_ID_RE = /^[^/\\?#\u0000-\u001f]{1,255}$/;
+
+export function documentIdParam(req: HttpRequest, name = "id"): string {
+  const value = req.params[name];
+  if (!value || !DOC_ID_RE.test(value)) throw new BadRequestError(`Invalid ${name}`);
+  return value;
+}

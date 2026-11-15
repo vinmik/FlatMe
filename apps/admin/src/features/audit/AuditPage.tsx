@@ -3,6 +3,7 @@ import {
   Ban,
   Building2,
   CheckCircle2,
+  Database,
   ShieldCheck,
   Trash2,
   UserCheck,
@@ -32,10 +33,16 @@ const ACTIONS: Record<AuditEntry["action"], { label: string; icon: LucideIcon; t
   "listing.delete": { label: "Deleted listing", icon: Trash2, tone: "danger", dot: "bg-rose-600" },
   "report.resolve": { label: "Resolved report", icon: CheckCircle2, tone: "success", dot: "bg-emerald-500" },
   "report.dismiss": { label: "Dismissed report", icon: XCircle, tone: "neutral", dot: "bg-slate-400" },
+  "data.update": { label: "Edited document", icon: Database, tone: "warning", dot: "bg-amber-500" },
+  "data.delete": { label: "Deleted document", icon: Trash2, tone: "danger", dot: "bg-rose-600" },
 };
 
 function targetLink(e: AuditEntry): string | null {
-  if (e.action === "user.delete" || e.action === "listing.delete") return null;
+  if (e.action === "user.delete" || e.action === "listing.delete" || e.action === "data.delete") return null;
+  if (e.targetType === "document") {
+    const [container = "", ...rest] = e.targetId.split("/");
+    return `/data?container=${encodeURIComponent(container)}&doc=${encodeURIComponent(rest.join("/"))}`;
+  }
   if (e.targetType === "user") return `/users?user=${encodeURIComponent(e.targetId)}`;
   if (e.targetType === "listing") return `/listings?listing=${encodeURIComponent(e.targetId)}`;
   return `/reports?status=all&q=${encodeURIComponent(e.targetId)}`;

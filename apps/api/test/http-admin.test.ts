@@ -3,7 +3,18 @@ import { SearchQuerySchema, ApiErrorSchema, ListingDetailSchema, UserSchema, Fee
 import { afterEach, describe, expect, it } from "vitest";
 import { setServices } from "../src/composition";
 import { AccountSuspendedError, ConflictError, NotFoundError } from "../src/domain/errors";
-import { adminListAudit, adminListUsers, adminSetUserRole, adminSetUserStatus } from "../src/functions/admin";
+import {
+  adminDataBrowse,
+  adminDataDelete,
+  adminDataGet,
+  adminDataQuery,
+  adminDataReplace,
+  adminListAudit,
+  adminListUsers,
+  adminSetUserRole,
+  adminSetUserStatus,
+} from "../src/functions/admin";
+import type { InquiryEntity } from "../src/domain/entities";
 import { otpRequest, otpVerify } from "../src/functions/auth";
 import { createListing, feed, getListing } from "../src/functions/listings";
 import { getMe, updateMe } from "../src/functions/me";
@@ -177,5 +188,104 @@ describe("personal mailbox sign-in", () => {
     const other = await call(otpRequest, { method: "POST", body: { email: "someone.else@gmail.com" } });
     expect(other.status).toBe(400);
     expect(ApiErrorSchema.parse(bodyOf(other)).error.code).toBe("personal_email");
+  });
+});
+describe("data explorer", () => {
+  async function setup() {
+    const h = createHarness({ adminAuthDisabled: true });
+    setServices(h.services);
+    const { user } = await h.signIn("a@tcs.com");
+    return { h, user };
+  }
+
+  it("only runs single read-only SELECT statements", async () => {
+    const { user } = await setup();
+    for (const query of ["DELETE FROM c WHERE c.id = 'x'", "SELECT * FROM c; SELECT * FROM c", "/* SELECT */ UPSERT c"]) {
+      const res = await call(adminDataQuery, { method: "POST", params: { container: "users" }, body: { query } });
+      expect(res.status).toBe(400);
+      expect(ApiErrorSchema.parse(bodyOf(res)).error.code).toBe("bad_request");
+    }
+    const ok = await call(adminDataQuery, {
+      method: "POST",
+      params: { container: "users" },
+      body: { query: `SELECT * FROM c WHERE c.email = '${user.email}'` },
+    });
+    expect(ok.status).toBe(200);
+    expect(bodyOf(ok)).toMatchObject({ count: 1, continuation: null, items: [{ id: user.id }] });
+  });
+
+  it("rejects containers outside the allowlist", async () => {
+    await setup();
+    expect((await call(adminDataBrowse, { params: { container: "secrets" } })).status).toBe(404);
+    const q = await call(adminDataQuery, { method: "POST", params: { container: "secrets" }, body: { query: "SELECT * FROM c" } });
+    expect(q.status).toBe(404);
+  });
+
+  it("browses with a field filter and continuation pages", async () => {
+    const { h } = await setup();
+    await h.signIn("b@tcs.com");
+    await h.signIn("c@infosys.com");
+    const first = bodyOf(await call(adminDataBrowse, { path: "x?pageSize=2", params: { container: "users" } })) as {
+      items: unknown[];
+      continuation: string | null;
+    };
+    expect(first.items).toHaveLength(2);
+    const rest = bodyOf(
+      await call(adminDataBrowse, { path: `x?pageSize=2&continuation=${first.continuation}`, params: { container: "users" } }),
+    ) as { items: unknown[]; continuation: string | null };
+    expect(rest).toMatchObject({ continuation: null });
+    expect(rest.items).toHaveLength(1);
+    const filtered = bodyOf(
+      await call(adminDataBrowse, { path: "x?field=email&op=contains&value=INFOSYS", params: { container: "users" } }),
+    ) as { items: { email: string }[] };
+    expect(filtered.items.map((u) => u.email)).toEqual(["c@infosys.com"]);
+    expect((await call(adminDataBrowse, { path: "x?field=a;b&value=1", params: { container: "users" } })).status).toBe(400);
+  });
+
+  it("refuses to change a document's id or partition key, or to edit the audit log", async () => {
+    const { h } = await setup();
+    const inquiry = { id: "inq_1", listingId: "lst_1", fromUserId: "u1", toUserId: "u2", createdAt: "2025-06-01T00:00:00.000Z" };
+    await h.services.repos.inquiries.create(inquiry as unknown as InquiryEntity);
+    const params = { container: "inquiries", id: "inq_1" };
+    const path = "x?pk=lst_1";
+
+    const idChange = await call(adminDataReplace, { method: "PUT", path, params, body: { ...inquiry, id: "inq_2" } });
+    expect(idChange.status).toBe(400);
+    const pkChange = await call(adminDataReplace, { method: "PUT", path, params, body: { ...inquiry, listingId: "lst_2" } });
+    expect(pkChange.status).toBe(400);
+    expect(ApiErrorSchema.parse(bodyOf(pkChange)).error.message).toMatch(/partition key/i);
+    const notObject = await call(adminDataReplace, { method: "PUT", path, params, body: [inquiry] });
+    expect(notObject.status).toBe(400);
+
+    const audit = await call(adminDataDelete, { method: "DELETE", path: "x?pk=aud_1", params: { container: "audit", id: "aud_1" } });
+    expect(audit.status).toBe(400);
+  });
+
+  it("replaces and deletes documents with optimistic concurrency, auditing each write", async () => {
+    const { h, user } = await setup();
+    const params = { container: "users", id: user.id };
+    const path = `x?pk=${user.id}`;
+    const doc = bodyOf(await call(adminDataGet, { path, params })) as Record<string, unknown> & { _etag: string };
+    expect(doc._etag).toBeTruthy();
+
+    const saved = await call(adminDataReplace, { method: "PUT", path, params, body: { ...doc, designation: "Principal Engineer" } });
+    expect(saved.status).toBe(200);
+    expect(bodyOf(saved)).toMatchObject({ id: user.id, designation: "Principal Engineer" });
+    expect(bodyOf(saved)).not.toHaveProperty("_rid");
+    h.clock.advance(1000);
+
+    // The original _etag is now stale.
+    const stale = await call(adminDataReplace, { method: "PUT", path, params, body: { ...doc, designation: "Intern" } });
+    expect(stale.status).toBe(409);
+    expect(ApiErrorSchema.parse(bodyOf(stale)).error.code).toBe("conflict");
+
+    expect((await call(adminDataDelete, { method: "DELETE", path, params })).status).toBe(204);
+    expect((await call(adminDataGet, { path, params })).status).toBe(404);
+
+    const audit = bodyOf(await call(adminListAudit, {})) as { items: { action: string; targetType: string; targetId: string; details: string }[] };
+    expect(audit.items.slice(0, 2)).toEqual([
+      expect.objectContaining({ action: "data.delete", targetType: "document", targetId: `users/${user.id}` }),
+      expect.objectContaining({ action: "data.update", targetType: "document", targetId: `users/${user.id}`, details: expect.stringContaining("designation") }),
+    ]);
   });
 });

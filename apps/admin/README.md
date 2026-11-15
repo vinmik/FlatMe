@@ -34,6 +34,37 @@ To sign in, use **admin@flatme.in** with code **123456**. The code also appears 
 
 Mock data lives in memory, so reloading the page resets it.
 
+## Data Explorer
+
+The **Data Explorer** page (`/data`, `src/features/data`) gives raw access to the Cosmos containers:
+
+- Browse any container with a field `equals` / `contains` filter, 25 items per page and "Load more".
+- Run read-only SQL (`SELECT` only, no `;`). The editor shows the request charge in RU, and Ctrl/⌘+Enter runs the query.
+- View a document's JSON in a drawer, edit it as a full replace, or delete it after typing its id to confirm.
+- Export the loaded results as JSON or CSV. CSV flattens top-level fields, JSON-encodes nested values and guards against formula injection.
+
+Endpoints:
+
+| Method | Route |
+| --- | --- |
+| GET | `admin/data/containers` |
+| GET | `admin/data/{container}/items?field&op&value&pageSize&continuation` |
+| POST | `admin/data/{container}/query` |
+| GET / PUT / DELETE | `admin/data/{container}/items/{id}?pk=` |
+
+The server enforces these guarantees, and the mock backend mirrors them:
+
+- Only allowlisted containers (`DATA_CONTAINERS`) are reachable, and `audit` is read-only.
+- Filter field names are validated against a strict identifier path, and filter values are always sent as query parameters.
+- Queries must be a single `SELECT`.
+- On edit, the `id` and partition key can't change and system properties are stripped.
+- Saves send the loaded `_etag`, so a concurrent change returns 409 instead of being overwritten.
+- Edits and deletes appear in the Audit log as `data.update` / `data.delete`.
+
+In mock mode, SQL is limited to `SELECT * FROM c [WHERE c.field = 'value' [AND …]]`.
+
+> **Warning:** while the API runs with `ADMIN_AUTH_DISABLED=true`, these endpoints are **publicly readable and writable**. Anyone who knows the URL can read or rewrite any document. Re-enable admin auth before relying on this in production.
+
 ## Auth
 
 > **Auth is currently disabled.** `VITE_ADMIN_AUTH_DISABLED=true` is the default in `.env.example` and in production builds (`vite.config.ts`). It pairs with the API running `ADMIN_AUTH_DISABLED=true`.

@@ -8,6 +8,8 @@ import {
   IndianPhoneSchema,
   ListingFiltersSchema,
   matchesFilters,
+  parseSimpleSelect,
+  validateReadOnlyQuery,
 } from "./index";
 
 const now = new Date("2026-11-14T10:00:00Z");
@@ -62,5 +64,27 @@ describe("availability round-trip", () => {
   it.each(["immediate", "within-week", "within-month", "flexible"] as const)("%s", (opt) => {
     const { availableFrom, flexible } = availabilityToDate(opt, now);
     expect(dateToAvailability(availableFrom, flexible, now)).toBe(opt);
+  });
+});
+
+describe("data explorer query guards", () => {
+  it("accepts a single SELECT, even after comments", () => {
+    expect(validateReadOnlyQuery("SELECT * FROM c")).toBeNull();
+    expect(validateReadOnlyQuery("-- newest\n/* all */ select c.id FROM c")).toBeNull();
+  });
+
+  it.each(["DELETE FROM c", "  ", "SELECT * FROM c; SELECT 1", "/* SELECT */ UPDATE c", "SELECTx FROM c"])("rejects %j", (q) => {
+    expect(validateReadOnlyQuery(q)).not.toBeNull();
+  });
+
+  it("parses the in-memory SELECT subset and rejects the rest", () => {
+    expect(parseSimpleSelect("SELECT * FROM c WHERE c.status = 'active' AND c.stats.views = 3")).toEqual({
+      where: [
+        { path: "status", value: "active" },
+        { path: "stats.views", value: 3 },
+      ],
+    });
+    expect(parseSimpleSelect("SELECT c.id FROM c")).toBeNull();
+    expect(parseSimpleSelect("SELECT * FROM c WHERE c.rent > 5")).toBeNull();
   });
 });

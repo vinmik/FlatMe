@@ -10,6 +10,11 @@ import {
   AdminUserQuerySchema,
   AdminUserSchema,
   AuditPageSchema,
+  DataBrowseQuerySchema,
+  DataContainerListSchema,
+  DataDocumentSchema,
+  DataPageSchema,
+  DataQueryInputSchema,
   ModerateListingSchema,
   OtpRequestResponseSchema,
   OtpRequestSchema,
@@ -25,6 +30,9 @@ import {
   type AdminListingQuery,
   type AdminReportQuery,
   type AdminUserQuery,
+  type DataBrowseQuery,
+  type DataDocument,
+  type DataQueryInput,
   type ModerateListing,
   type ResolveReport,
   type Role,
@@ -100,6 +108,22 @@ export function createEndpoints(c: ApiClient) {
     audit: {
       list: (q: AdminAuditQuery = {}) =>
         c.request(AuditPageSchema, ADMIN_ROUTES.audit, { query: AdminAuditQuerySchema.parse(q) }),
+    },
+
+    /** Raw container access (Data Explorer). Document ids are URL-encoded: Cosmos ids may contain `@`, spaces, etc. */
+    data: {
+      containers: () => c.request(DataContainerListSchema, ADMIN_ROUTES.dataContainers),
+      browse: (container: string, q: DataBrowseQuery = {}) =>
+        c.request(DataPageSchema, ADMIN_ROUTES.dataItems(container), { query: DataBrowseQuerySchema.parse(q) }),
+      query: (container: string, body: DataQueryInput) =>
+        c.request(DataPageSchema, ADMIN_ROUTES.dataQuery(container), { method: "POST", body: DataQueryInputSchema.parse(body) }),
+      get: (container: string, id: string, pk: string) =>
+        c.request(DataDocumentSchema, ADMIN_ROUTES.dataItem(container, encodeURIComponent(id)), { query: { pk } }),
+      /** Full replace; the document's `_etag` makes the server reject the write if it changed meanwhile. */
+      replace: (container: string, id: string, pk: string, doc: DataDocument) =>
+        c.request(DataDocumentSchema, ADMIN_ROUTES.dataItem(container, encodeURIComponent(id)), { method: "PUT", query: { pk }, body: doc }),
+      remove: (container: string, id: string, pk: string) =>
+        c.requestVoid(ADMIN_ROUTES.dataItem(container, encodeURIComponent(id)), { method: "DELETE", query: { pk } }),
     },
   };
 }

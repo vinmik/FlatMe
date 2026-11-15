@@ -9,7 +9,7 @@ import type {
   ListingStatsRow,
   Paged,
 } from "../../ports";
-import { clone, containsText, newestFirst, paginate } from "./util";
+import { clone, containsText, mapCollection, newestFirst, paginate, type MemoryCollection } from "./util";
 
 /** Reference implementation of the search semantics documented on {@link ListingRepository}. */
 export class MemoryListingRepository implements ListingRepository {
@@ -17,6 +17,10 @@ export class MemoryListingRepository implements ListingRepository {
 
   constructor(seed: readonly ListingEntity[] = []) {
     for (const l of seed) this.docs.set(l.id, clone(l));
+  }
+
+  collection(): MemoryCollection {
+    return mapCollection(this.docs);
   }
 
   async get(id: string): Promise<ListingEntity | null> {

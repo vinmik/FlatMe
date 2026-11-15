@@ -1,4 +1,5 @@
 import type { ListingEntity, ReportEntity, UserEntity } from "../../domain/entities";
+import { MemoryDataExplorerRepository } from "./dataExplorerRepository";
 import { MemoryListingRepository } from "./listingRepository";
 import {
   MemoryAuditRepository,
@@ -15,7 +16,7 @@ export interface MemorySeed {
 }
 
 export function createMemoryRepositories(seed?: MemorySeed) {
-  return {
+  const repos = {
     users: new MemoryUserRepository(seed?.users),
     listings: new MemoryListingRepository(seed?.listings),
     otps: new MemoryOtpRepository(),
@@ -23,10 +24,13 @@ export function createMemoryRepositories(seed?: MemorySeed) {
     reports: new MemoryReportRepository(seed?.reports),
     audit: new MemoryAuditRepository(),
   };
+  const collections = Object.fromEntries(Object.entries(repos).map(([name, repo]) => [name, repo.collection()]));
+  return { ...repos, data: new MemoryDataExplorerRepository(collections) };
 }
 
 export {
   MemoryAuditRepository,
+  MemoryDataExplorerRepository,
   MemoryInquiryRepository,
   MemoryListingRepository,
   MemoryOtpRepository,

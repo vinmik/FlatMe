@@ -1,16 +1,20 @@
+import type { HttpRequest } from "@azure/functions";
 import {
   ADMIN_ROUTES,
   AdminAuditQuerySchema,
   AdminListingQuerySchema,
   AdminReportQuerySchema,
   AdminUserQuerySchema,
+  DataBrowseQuerySchema,
+  DataItemKeySchema,
+  DataQueryInputSchema,
   ModerateListingSchema,
   ResolveReportSchema,
   SetUserRoleSchema,
   SetUserStatusSchema,
 } from "@flatme/shared";
 import { withAdmin } from "../http/handler";
-import { parseBody, parseQuery, routeParam } from "../http/request";
+import { documentIdParam, parseBody, parseQuery, readJson, routeParam } from "../http/request";
 import { registerHttp } from "../http/register";
 import { noContent, ok } from "../http/responses";
 
@@ -65,6 +69,34 @@ export const adminListAudit = withAdmin(async ({ req, services }) =>
   ok(await services.admin.listAudit(parseQuery(req, AdminAuditQuerySchema))),
 );
 
+/* ───────────── Data Explorer ───────────── */
+
+const ifMatch = (req: HttpRequest) => req.headers.get("if-match") ?? undefined;
+const docKey = (req: HttpRequest) =>
+  [routeParam(req, "container"), documentIdParam(req), parseQuery(req, DataItemKeySchema).pk] as const;
+
+export const adminDataContainers = withAdmin(async ({ services }) => ok(services.dataExplorer.containers()));
+
+export const adminDataBrowse = withAdmin(async ({ req, services }) =>
+  ok(await services.dataExplorer.browse(routeParam(req, "container"), parseQuery(req, DataBrowseQuerySchema))),
+);
+
+export const adminDataQuery = withAdmin(async ({ req, services }) =>
+  ok(await services.dataExplorer.query(routeParam(req, "container"), await parseBody(req, DataQueryInputSchema))),
+);
+
+export const adminDataGet = withAdmin(async ({ req, services }) => ok(await services.dataExplorer.get(...docKey(req))));
+
+export const adminDataReplace = withAdmin(async ({ req, user, services }) => {
+  const [container, id, pk] = docKey(req);
+  return ok(await services.dataExplorer.replace(user, container, id, pk, await readJson(req), ifMatch(req)));
+});
+
+export const adminDataDelete = withAdmin(async ({ req, user, services }) => {
+  await services.dataExplorer.delete(user, ...docKey(req), ifMatch(req));
+  return noContent();
+});
+
 const r = ADMIN_ROUTES;
 registerHttp("adminStats", { route: r.stats, methods: ["GET"], handler: adminStats });
 registerHttp("adminListUsers", { route: r.users, methods: ["GET"], handler: adminListUsers });
@@ -95,3 +127,9 @@ registerHttp("adminResolveReport", {
   handler: adminResolveReport,
 });
 registerHttp("adminListAudit", { route: r.audit, methods: ["GET"], handler: adminListAudit });
+registerHttp("adminDataContainers", { route: r.dataContainers, methods: ["GET"], handler: adminDataContainers });
+registerHttp("adminDataBrowse", { route: r.dataItems("{container}"), methods: ["GET"], handler: adminDataBrowse });
+registerHttp("adminDataQuery", { route: r.dataQuery("{container}"), methods: ["POST"], handler: adminDataQuery });
+registerHttp("adminDataGet", { route: r.dataItem("{container}", "{id}"), methods: ["GET"], handler: adminDataGet });
+registerHttp("adminDataReplace", { route: r.dataItem("{container}", "{id}"), methods: ["PUT"], handler: adminDataReplace });
+registerHttp("adminDataDelete", { route: r.dataItem("{container}", "{id}"), methods: ["DELETE"], handler: adminDataDelete });

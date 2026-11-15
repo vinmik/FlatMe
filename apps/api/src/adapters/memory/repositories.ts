@@ -8,10 +8,14 @@ import type {
   ReportCriteria,
   ReportRepository,
 } from "../../ports";
-import { clone, containsText, newestFirst, paginate } from "./util";
+import { arrayCollection, clone, containsText, mapCollection, newestFirst, paginate, type MemoryCollection } from "./util";
 
 export class MemoryOtpRepository implements OtpRepository {
   private readonly docs = new Map<string, OtpEntity>();
+
+  collection(): MemoryCollection {
+    return mapCollection(this.docs, (d) => d.email);
+  }
 
   async get(email: string): Promise<OtpEntity | null> {
     const d = this.docs.get(email);
@@ -29,6 +33,10 @@ export class MemoryOtpRepository implements OtpRepository {
 
 export class MemoryInquiryRepository implements InquiryRepository {
   readonly items: InquiryEntity[] = [];
+
+  collection(): MemoryCollection {
+    return arrayCollection(this.items);
+  }
 
   async create(inquiry: InquiryEntity): Promise<void> {
     this.items.push(clone(inquiry));
@@ -56,6 +64,10 @@ export class MemoryReportRepository implements ReportRepository {
 
   constructor(seed: readonly ReportEntity[] = []) {
     for (const r of seed) this.docs.set(r.id, clone(r));
+  }
+
+  collection(): MemoryCollection {
+    return mapCollection(this.docs);
   }
 
   async create(report: ReportEntity): Promise<void> {
@@ -108,6 +120,10 @@ export class MemoryReportRepository implements ReportRepository {
 
 export class MemoryAuditRepository implements AuditRepository {
   private readonly docs: AuditEntity[] = [];
+
+  collection(): MemoryCollection {
+    return arrayCollection(this.docs);
+  }
 
   async append(entry: AuditEntity): Promise<void> {
     this.docs.push(clone(entry));
