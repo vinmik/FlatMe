@@ -1,0 +1,10 @@
+{
+  "name": "@flatme/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FlatMe public landing page (placeholder) — static site on Azure Static Web Apps",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}

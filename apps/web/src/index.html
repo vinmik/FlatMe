@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FlatMe — Your next flatmate works at a great company</title>
+    <meta name="description" content="FlatMe connects verified corporate professionals looking for flats and flatmates in Hyderabad. Zero brokers, zero hassle." />
+    <meta name="theme-color" content="#0891B2" />
+    <link rel="icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/config.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
+    <header class="nav">
+      <a class="brand" href="/"><span class="logo"><img src="/icon.png" alt="" width="26" height="26" /></span> FlatMe</a>
+      <span class="pill">Coming soon · Hyderabad</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="reveal">
+          <h1>Your next flatmate works at a <span class="grad">great company</span></h1>
+          <p class="lede">Rooms and flatmates posted only by professionals verified with their corporate email. Zero brokers, zero hassle.</p>
+          <div class="cta">
+            <a class="btn primary" id="apk-link" href="#">Download for Android</a>
+            <a class="btn ghost" href="#how">How it works</a>
+          </div>
+          <ul class="stats" id="stats" hidden>
+            <li><strong data-stat="activeListings">–</strong><span>Active listings</span></li>
+            <li><strong data-stat="professionals">–</strong><span>Professionals</span></li>
+            <li><strong data-stat="companies">–</strong><span>Companies</span></li>
+          </ul>
+        </div>
+        <div class="phone reveal" aria-hidden="true">
+          <div class="screen">
+            <div class="card" id="hero-card">
+              <div class="photo shimmer"></div>
+              <div class="meta"><b>Finding rooms…</b><small>Verified professionals only</small></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="features">
+        <article class="feature reveal"><div class="ic">🛡️</div><h3>Corporate-verified</h3><p>Everyone signs in with a work email and a one-time code. No anonymous profiles.</p></article>
+        <article class="feature reveal"><div class="ic">⚡</div><h3>Find in 60 seconds</h3><p>Filter by area, rent and room type, explore on the map and contact the owner instantly.</p></article>
+        <article class="feature reveal"><div class="ic">🤝</div><h3>No broker fees</h3><p>Post your room for free and meet flatmates from companies you trust.</p></article>
+      </section>
+
+      <section class="listings" id="listings" hidden>
+        <h2>Posted by verified professionals</h2>
+        <div class="rail" id="rail"></div>
+      </section>
+    </main>
+
+    <footer>© <span id="year"></span> FlatMe · Made for professionals in Hyderabad</footer>
+  </body>
+</html>

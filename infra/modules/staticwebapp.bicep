@@ -7,7 +7,8 @@ param name string
 
 param tags object = {}
 
-// Admin portal (apps/admin). Content is deployed out-of-band with the SWA CLI / deployment token.
+// Static site (admin portal / public web). Content is deployed out-of-band with the deployment token
+// (see .github/workflows/deploy.yml).
 resource site 'Microsoft.Web/staticSites@2024-04-01' = {
   name: name
   location: location

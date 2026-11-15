@@ -72,6 +72,7 @@ var names = {
   plan: 'plan-${base}'
   functionApp: 'func-${base}-${suffix}'
   staticWebApp: 'swa-${base}-admin-${suffix}'
+  webSite: 'swa-${base}-web-${suffix}'
 }
 
 module monitoring 'modules/monitoring.bicep' = {
@@ -104,6 +105,11 @@ module adminPortal 'modules/staticwebapp.bicep' = {
   params: { location: staticWebAppLocation, name: names.staticWebApp, tags: tags }
 }
 
+module webSite 'modules/staticwebapp.bicep' = {
+  name: 'web-site'
+  params: { location: staticWebAppLocation, name: names.webSite, tags: tags }
+}
+
 module functionApp 'modules/functionapp.bicep' = {
   name: 'function-app'
   params: {
@@ -113,7 +119,7 @@ module functionApp 'modules/functionapp.bicep' = {
     storageAccountName: storage.outputs.name
     deploymentContainerUrl: storage.outputs.deploymentContainerUrl
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
-    corsAllowedOrigins: concat([ 'https://${adminPortal.outputs.defaultHostname}' ], extraCorsOrigins)
+    corsAllowedOrigins: concat([ 'https://${adminPortal.outputs.defaultHostname}', 'https://${webSite.outputs.defaultHostname}' ], extraCorsOrigins)
     tags: tags
     appSettings: {
       COSMOS_ENDPOINT: cosmos.outputs.endpoint
@@ -162,3 +168,5 @@ output keyVaultName string = keyVault.outputs.name
 output adminPortalName string = adminPortal.outputs.name
 output adminPortalHostname string = adminPortal.outputs.defaultHostname
 output adminPortalUrl string = 'https://${adminPortal.outputs.defaultHostname}'
+output webSiteName string = webSite.outputs.name
+output webSiteUrl string = 'https://${webSite.outputs.defaultHostname}'

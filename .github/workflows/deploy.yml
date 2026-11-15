@@ -1,0 +1,133 @@
+name: Deploy
+
+# Manual production deploy of `main`. Run from Actions → Deploy → "Run workflow".
+# Auth: GitHub OIDC → Entra app `gh-flatme-deploy` (Contributor on rg-flatme-prod); no Azure keys stored.
+# Config lives in the `production` environment (restricted to the main branch):
+#   secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, SWA_ADMIN_TOKEN, SWA_WEB_TOKEN
+#   vars:    RESOURCE_GROUP, FUNCTION_APP_NAME, API_BASE_URL, ADMIN_AUTH_DISABLED
+
+on:
+  workflow_dispatch:
+    inputs:
+      api:
+        description: Deploy API (Function App)
+        type: boolean
+        default: true
+      admin:
+        description: Deploy admin portal
+        type: boolean
+        default: true
+      web:
+        description: Deploy public web app
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify (typecheck & test)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck & test (shared, api, admin)
+        run: |
+          npm run typecheck -w packages/shared -w apps/api -w apps/admin
+          npm run test -w packages/shared -w apps/api -w apps/admin
+
+  api:
+    name: API → Function App
+    needs: verify
+    if: inputs.api
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build & package
+        run: |
+          npm run build -w apps/api
+          node apps/api/scripts/package.mjs
+          cd apps/api/.deploy && zip -qr ../api.zip .
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Zip deploy
+        run: az functionapp deployment source config-zip -g "${{ vars.RESOURCE_GROUP }}" -n "${{ vars.FUNCTION_APP_NAME }}" --src apps/api/api.zip
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS "${{ vars.API_BASE_URL }}/health"; then exit 0; fi
+            sleep 10
+          done
+          echo "API health check failed" && exit 1
+
+  admin:
+    name: Admin portal → Static Web App
+    needs: verify
+    if: inputs.admin
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build -w apps/admin
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_USE_MOCKS: "false"
+          VITE_ADMIN_AUTH_DISABLED: ${{ vars.ADMIN_AUTH_DISABLED }}
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_ADMIN_TOKEN }}
+          action: upload
+          app_location: apps/admin/dist
+          skip_app_build: true
+          skip_api_build: true
+
+  web:
+    name: Web app → Static Web App
+    needs: verify
+    if: inputs.web
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        run: npm run build -w apps/web
+        env:
+          WEB_API_BASE_URL: ${{ vars.API_BASE_URL }}
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_WEB_TOKEN }}
+          action: upload
+          app_location: apps/web/dist
+          skip_app_build: true
+          skip_api_build: true

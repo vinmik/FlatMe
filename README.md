@@ -7,6 +7,7 @@ Verified flat sharing for working professionals in Hyderabad. Sign in with your 
 | **Mobile app** | Expo / React Native (`apps/mobile`) |
 | **API** | Azure Functions, Node 22 (`apps/api`) → https://func-flatme-prod-5izkj3qnoyskq.azurewebsites.net/api |
 | **Admin portal** | React + Vite on Static Web Apps (`apps/admin`) → https://orange-forest-097ef9700.6.azurestaticapps.net |
+| **Web app** | Public landing page (placeholder) on Static Web Apps (`apps/web`) → https://salmon-island-0083ad500.3.azurestaticapps.net |
 | **Contracts** | Zod schemas shared by every app (`packages/shared`) |
 | **Infra** | Bicep: Cosmos DB, Blob Storage, Communication Services email, Key Vault, App Insights (`infra/`) |
 
@@ -40,7 +41,19 @@ npm test                      # shared, api, admin
 npm run lint -w apps/mobile
 ```
 
-CI (`.github/workflows/ci.yml`) runs the backend, mobile and admin jobs on every push and PR.
+CI (`.github/workflows/ci.yml`) runs the backend, mobile, admin and web jobs on every push and PR.
+
+## Deploying
+
+Production deploys are manual: **Actions → Deploy → Run workflow** on `main` (`.github/workflows/deploy.yml`). Tick which of API, admin portal and web app to ship; the workflow typechecks and tests first, then deploys.
+
+- Azure login uses GitHub OIDC with the Entra app `gh-flatme-deploy` (Contributor on `rg-flatme-prod`), so no Azure keys are stored in GitHub.
+- Secrets and variables live in the `production` environment, which only `main` may deploy from. Secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SWA_ADMIN_TOKEN`, `SWA_WEB_TOKEN`. Variables: `RESOURCE_GROUP`, `FUNCTION_APP_NAME`, `API_BASE_URL`, `ADMIN_AUTH_DISABLED`.
+- Infrastructure (Bicep) is still deployed by hand; see [infra/README.md](infra/README.md).
+
+```powershell
+gh workflow run deploy.yml --ref main -f api=true -f admin=true -f web=true
+```
 
 ## Mobile builds
 
