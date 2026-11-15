@@ -1,4 +1,4 @@
-import type { AdminListing, AdminUser, ListingDetail, ListingSummary, User } from "@flatme/shared";
+import type { AdminListing, AdminUser, ListingDetail, ListingSummary, PublicListing, User } from "@flatme/shared";
 import type { ListingEntity, UserEntity } from "./entities";
 
 export function toUserDto(u: UserEntity): User {
@@ -42,6 +42,26 @@ export function toListingSummary(l: ListingEntity, distanceKm: number | null = n
     distanceKm: roundKm(distanceKm),
     status: l.status,
     createdAt: l.createdAt,
+  };
+}
+
+/** Rounds to 3 decimals (about 110 m) so anonymous visitors can't pinpoint a home. */
+const blur = (n: number) => Math.round(n * 1000) / 1000;
+
+/** Summary for anonymous visitors: same card data, approximate location. */
+export function toPublicSummary(l: ListingEntity, distanceKm: number | null = null): ListingSummary {
+  return { ...toListingSummary(l, distanceKm), location: { lat: blur(l.location.lat), lng: blur(l.location.lng) } };
+}
+
+/** Detail for anonymous visitors: no contact, no owner id, no stats. */
+export function toPublicListing(l: ListingEntity): PublicListing {
+  return {
+    ...toPublicSummary(l),
+    deposit: l.deposit,
+    description: l.description,
+    amenities: [...l.amenities],
+    photos: [...l.photos],
+    updatedAt: l.updatedAt,
   };
 }
 

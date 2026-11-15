@@ -8,6 +8,8 @@ FlatMe is an npm-workspaces monorepo:
 | `apps/api` | `@flatme/api` | HTTP API on Azure Functions (v4 Node programming model, Node 22, Flex Consumption). |
 | `apps/mobile` | `@flatme/mobile` | Expo mobile app. |
 | `apps/admin` | — | Admin portal (Static Web App). |
+| `apps/web` | `@flatme/web` | Placeholder landing page (static, Static Web App). |
+| `apps/webapp` | `@flatme/webapp` | Web app (Next.js): server-rendered public pages plus the signed-in product. See [Web app](#web-app). |
 | `infra/` | — | Bicep for all Azure resources. |
 
 ## Backend
@@ -51,6 +53,8 @@ The Functions host reserves the `admin` route segment. `host.json` therefore set
 | --- | --- | --- | --- |
 | GET | `health` | – | `{status:"ok",version}` |
 | GET | `public/highlights` | – | `PublicHighlights` (cached 60 s, no contact info) |
+| GET | `public/listings?<SearchQuery>` | – | `ListingPage` (active only, no contact info, location rounded to ~110 m) |
+| GET | `public/listings/{id}` | – | `PublicListing` (404 unless active; views not counted) |
 | POST | `auth/otp/request` | – | `OtpRequestResponse` (`devCode` only in dev mode) |
 | POST | `auth/otp/verify` | – | `OtpVerifyResponse` |
 | GET / PATCH (PUT alias) / DELETE | `me` | ✔ | `User` / `User` / 204 |
@@ -211,6 +215,44 @@ The admin portal (`apps/admin`, Static Web App) talks to the same Function App t
 
 CORS: the Function App allows the admin SWA origin, `http://localhost:5173` (admin dev) and `http://localhost:8081` (Expo web). Native mobile clients don't need CORS.
 
+## Web app
+
+`apps/webapp` is a Next.js 16 app (App Router) that serves two audiences from one codebase. Setup, scripts and go-live steps are in [`apps/webapp/README.md`](../apps/webapp/README.md).
+
+| Part | Rendered | Reads | Pages |
+| --- | --- | --- | --- |
+| Public | On the server, so search engines get finished HTML | `public/*` endpoints, no sign-in | `/`, `/flats`, `/flats/<area>`, `/listing/<id>`, `/sitemap.xml`, `/robots.txt` |
+| Members | In the browser | Authenticated API with the Bearer token | `/signin`, `/welcome`, `/post`, `/listing/<id>/edit`, `/my-listings`, `/saved`, `/profile` |
+
+**Why the public endpoints exist**
+- Search engines can't sign in, and every listing endpoint except `public/highlights` required a token. `public/listings` and `public/listings/{id}` expose active listings to anyone.
+- They never return the owner's contact, id or listing stats, and they round the location to 3 decimals (about 110 m). Signed-in members still get the exact pin from `listings/{id}`.
+- The web app also uses `public/listings` for signed-in browsing, so there is one browse path. Contact details, saving, messaging and reporting stay behind sign-in.
+
+**Request flow for a public page**
+1. The server component calls `lib/public-api.ts`, which fetches the API and caches the answer for 60 seconds under the tags `listings` and `listing:<id>`.
+2. The page is returned as HTML with its own title, description, canonical link and, on listing pages, `Apartment` structured data.
+3. In the browser, client components hydrate: the map loads, hearts and the contact panel check the saved session.
+4. When a member posts, edits, pauses or deletes a listing, the client calls the server action in `lib/refresh.ts`, which drops the cached answers so the change is visible at once.
+
+**Sessions and shared accounts**
+- Sign-in is the same OTP flow as the mobile app. The token is kept in `localStorage`; a 401 from the API ends the session.
+- Accounts, listings and saved flats are the same ones the mobile app uses.
+- "Where I work" (an office area or the device location) is stored on the device only and drives distance sorting.
+
+**Rules that exist only in the web app**
+- A listing needs at least one photo to be published or saved. The API and the mobile app still accept none.
+
+**Local development**
+- `npm run storage -w apps/api` starts a stand-in for Blob Storage on `http://127.0.0.1:10000`, the address the local API's upload links point to, so photo uploads work without Azure. Files go to `apps/api/.local-storage` (git-ignored).
+
+**Relation to `apps/web`**
+- `apps/web` is the static placeholder landing page that is live today. `apps/webapp` is the full web app meant to replace it; both can sit in the repo until the web app is hosted.
+
+**Not provisioned yet**
+- Nothing in `infra/` or `.github/workflows/deploy.yml` hosts the web app yet. It needs a host that runs Node. Two routes on Azure: App Service, or Static Web Apps' hybrid Next.js mode (in preview; untested with this app).
+- Its address must be in the Function App's CORS list (`extraCorsOrigins`, or wired in `infra/main.bicep` like the other sites).
+
 ## Infrastructure
 
 All resources live in one resource group and are defined in `infra/main.bicep` + `infra/modules/*`. Deployment commands are in [`infra/README.md`](../infra/README.md).
@@ -246,10 +288,12 @@ All resources live in one resource group and are defined in `infra/main.bicep` +
 - Grants a human or CI principal Cosmos data and blob access so `npm run seed` can run from a dev machine.
 
 **CI**
-- `.github/workflows/ci.yml` has three jobs:
+- `.github/workflows/ci.yml` has these jobs:
   - **backend**: typechecks and tests shared + api, builds and packages the API, and compiles the Bicep.
   - **mobile**: typecheck, `expo lint` (React Compiler rules), and a web export bundle smoke test.
   - **admin**: typecheck, tests, and `vite build`.
+  - **web**: builds the placeholder landing page.
+  - **webapp**: typecheck, tests, and `next build`.
 
 ## Mobile app
 

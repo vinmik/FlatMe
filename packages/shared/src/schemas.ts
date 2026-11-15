@@ -260,6 +260,19 @@ export const PublicHighlightsSchema = z.object({
 });
 export type PublicHighlights = z.infer<typeof PublicHighlightsSchema>;
 
+/**
+ * What anyone can see without signing in (website visitors and search engines):
+ * the room itself, never the owner's contact details, and only an approximate location.
+ */
+export const PublicListingSchema = ListingSummarySchema.extend({
+  deposit: z.number(),
+  description: z.string(),
+  amenities: z.array(AmenitySchema),
+  photos: z.array(z.string()),
+  updatedAt: z.string(),
+});
+export type PublicListing = z.infer<typeof PublicListingSchema>;
+
 /* ───────────────────────────── Inquiries ───────────────────────────── */
 
 export const InquiryInputSchema = z.object({

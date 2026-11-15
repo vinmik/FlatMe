@@ -103,3 +103,23 @@ jobs:
 
       - name: Build
         run: npm run build -w apps/web
+
+  webapp:
+    name: Web app (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck, test & build
+        run: |
+          npm run typecheck -w apps/webapp
+          npm run test -w apps/webapp
+          npm run build -w apps/webapp

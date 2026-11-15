@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Home, MapPin, Users } from "lucide-react-native";
 import { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import Animated, { FadeInRight, FadeInUp } from "react-native-reanimated";
 import { useFavoriteIds, useToggleFavorite } from "@/api/hooks";
 import { colors, radius, shadow, spacing } from "@/theme/tokens";
@@ -30,7 +30,8 @@ export const ListingCard = memo(function ListingCard({ listing, layout = "rail",
       <PressableScale
         scaleTo={0.97}
         onPress={() => router.push({ pathname: "/listing/[id]", params: { id: listing.id } })}
-        accessibilityRole="button"
+        // Web renders role "button" as <button>, which can't contain the heart button.
+        accessibilityRole={Platform.OS === "web" ? "link" : "button"}
         accessibilityLabel={`${listing.roomType} in ${listing.area}, ${formatRupees(listing.rent)} per month`}
         style={[styles.card, shadow.sm]}
       >
